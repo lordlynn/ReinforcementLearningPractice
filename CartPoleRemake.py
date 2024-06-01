@@ -1,20 +1,23 @@
 # https://keras.io/examples/rl/actor_critic_cartpole/
 import os
 os.environ["KERAS_BACKEND"] = "tensorflow"      # Set keras bacedn to ensure tesnorflow is used for computations
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import numpy as np
 import gymnasium as gym
 
 import keras
-from keras import ops
 from keras import layers
+
+from keras import ops
 import tensorflow as tf
 
+# plotting the progress
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 
 # ----------------- Network Architecure variables ----------------
-action = None
-critic = None
 model = None
 num_inputs = 4                                                      # [position, velocity, pole angle, pole angular velocity]
 num_actions = 2                                                     # [0 - left, 1 - right]
@@ -23,29 +26,30 @@ num_hidden = 128                                                    # Number of 
 
 # --------------- Gymnaisum environment variables ----------------
 seed = 42
-gamma = 0.99                                                        # Discount factor for past rewards
-max_steps_per_episode = 10000
-env = gym.make("CartPole-v1", render_mode="human")
+max_steps_per_episode = 1500
+env = gym.make("CartPole-v1", render_mode="human", max_episode_steps=max_steps_per_episode)
 observation, info = env.reset(seed=seed)
-eps = np.finfo(np.float32).eps.item()                               # Smallest number such that 1.0 + eps != 1.0
+
+eps = np.finfo(np.float32).eps.item()  
+gamma = 0.99
 
 
 # -------------------- Variables for training --------------------
 optimizer = None
-huber_loss = None
-action_probs_history = []
-critic_value_history = []
+lossFunction = None
+action_history = []
+critic_history = []
 rewards_history = []
 running_reward = 0
 episode_count = 0
 
 
 def setupNetwork():
-    global optimizer, huber_loss
-    global action, critic, model
+    global optimizer, lossFunction
+    global model
 
     optimizer = keras.optimizers.Adam(learning_rate=0.01)
-    huber_loss = keras.losses.Huber()
+    lossFunction = keras.losses.Huber()
 
     # Input layer for CartPole observations 
     inputs = layers.Input(shape=(num_inputs,))
@@ -59,53 +63,55 @@ def setupNetwork():
 
     # Overall model
     model = keras.Model(inputs=inputs, outputs=[action, critic])
+    # model.compile(optimizer=optimizer, loss=lossFunction)
 
 
 def trainNetwork():
-    global episode_count, running_reward
-    global action_probs_history, critic_value_history, rewards_history
-    
-    # Main loop for training (Each iteration 1 Episode)
-    while True:  
-        state, info = env.reset()
-        episode_reward = 0
-        
-        
-        with tf.GradientTape() as tape:
+    global episode_count, reward_progress
+    global action_history, critic_history, rewards_history
 
-            # Iterate through an episode
-            # Basically use the current model and record:
-            #       - Actions taken
-            #       - Rewards earned
-            #       - Critic values
-            #       - Running Reward (scalar)
-            for timestep in range(1, max_steps_per_episode):
-        
-                # Convert state to a tesnor so it can be used by the model
+    reward_progress = []
+    loss_value = None
+
+    while True:
+
+        ############# Run an episode #############
+        action_history = []
+        critic_history = []
+        rewards_history = []
+
+        state, info = env.reset()
+
+        # Use gradient tape to perform training
+        with tf.GradientTape() as tape:
+            
+            for stp in range(max_steps_per_episode):
+                # 1.) Pass state to the model and get an action and critic 
+                # action = env.action_space.sample()
+
                 state = ops.convert_to_tensor(state)
                 state = ops.expand_dims(state, axis=0)
+                actions, critic = model(state)
 
-                # Predict action probabilities and estimated future rewards
-                # from environment state
-                action_probs, critic_value = model(state)
-                critic_value_history.append(critic_value[0, 0])
+                # 2.) Select action
+                action = np.random.choice([0, 1], p=np.array(actions[0]))
 
-                # Sample action from action probability distribution
-                action = np.random.choice(num_actions, p=np.squeeze(action_probs))
-                action_probs_history.append(ops.log(action_probs[0, action]))
-
-                # Apply the sampled action in our environment
-                state, reward, terminated, truncated, _ = env.step(action)
+                # 3.) Move to next step using action
+                state, reward, terminated, truncated, info = env.step(action)
+                
+            
+                # 4.) Record results in episode lists
+                action_history.append(ops.convert_to_tensor(ops.log(actions[0, action]), dtype=np.float32))
+                critic_history.append(ops.convert_to_tensor(critic[0][0], dtype=np.float32))
                 rewards_history.append(reward)
-                episode_reward += reward
-
-                if terminated:
-                    # print(f'Terminated at step {timestep}')
+                
+                # 5.) Break out of episode if end is reached
+                if (terminated or truncated):
+                    # print("Terminated")
                     break
-
-            # Update running reward to check condition for solving
-            running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
-
+            
+            
+            ############# Train after episode #############
             # Calculate expected value from rewards
             # - At each timestep what was the total reward received after that timestep
             # - Rewards in the past are discounted by multiplying them with gamma
@@ -116,48 +122,63 @@ def trainNetwork():
                 discounted_sum = r + gamma * discounted_sum
                 returns.insert(0, discounted_sum)
 
-            # Normalize
+            # Normalize - standard normal
             returns = np.array(returns)
             returns = (returns - np.mean(returns)) / (np.std(returns) + eps)
             returns = returns.tolist()
 
             # Calculating loss values to update our network
-            history = zip(action_probs_history, critic_value_history, returns)
+            history = zip(action_history, critic_history, returns)
             actor_losses = []
             critic_losses = []
+
+            # log_prob = action_history, value = critic_history, ret = returns
             for log_prob, value, ret in history:
-                # At this point in history, the critic estimated that we would get a
-                # total reward = `value` in the future. We took an action with log probability
-                # of `log_prob` and ended up receiving a total reward = `ret`.
+                # the critic estimated that we would get a reward (value), but we got a actual
+                # reward of (ret) for taking action with (log_probability).
                 # The actor must be updated so that it predicts an action that leads to
                 # high rewards (compared to critic's estimate) with high probability.
+
+                # actor loss = -action_prob * (return - critic)
                 diff = ret - value
                 actor_losses.append(-log_prob * diff)  # actor loss
 
-                # The critic must be updated so that it predicts a better estimate of
-                # the future rewards.
+                # Use huber loss for critic. Use critic history and rewards earned
                 critic_losses.append(
-                    huber_loss(ops.expand_dims(value, 0), ops.expand_dims(ret, 0))
+                    lossFunction(ops.expand_dims(value, 0), ops.expand_dims(ret, 0))
                 )
 
             # Backpropagation
+            # Combine both actor and critic losses
             loss_value = sum(actor_losses) + sum(critic_losses)
+            
+            # Calculate the gradient
             grads = tape.gradient(loss_value, model.trainable_variables)
+            
+            # update model
             optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-            # Clear the loss and reward history
-            action_probs_history.clear()
-            critic_value_history.clear()
-            rewards_history.clear()
 
         # Log details
         episode_count += 1
-        print(f"running reward: {running_reward:.2f} at episode {episode_count}")
+        print(f"Episode {episode_count}\tReward: {sum(rewards_history)}\tLoss: {loss_value:.2f}")
 
-        if running_reward > 195:  # Condition to consider the task solved
-            print("Solved at episode {}!".format(episode_count))
+        if sum(rewards_history) > 1250:                  # Condition to consider the task solved
+            print(f"Solved at episode {episode_count}")
             break
+        
+        reward_progress.append(sum(rewards_history))
+
+
+
 
 
 setupNetwork()
 trainNetwork()
+
+plt.figure(1)
+plt.plot(reward_progress)
+plt.xlabel("Episode")
+plt.ylabel("Steps survived")
+
+plt.show()
