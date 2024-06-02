@@ -14,7 +14,7 @@ import tensorflow as tf
 
 # plotting the progress
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+
 
 
 # ----------------- Network Architecure variables ----------------
