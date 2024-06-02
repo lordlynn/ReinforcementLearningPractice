@@ -9,7 +9,6 @@ import gymnasium as gym
 import keras
 from keras import layers
 
-from keras import ops
 import tensorflow as tf
 
 # plotting the progress
@@ -89,8 +88,8 @@ def trainNetwork():
                 # 1.) Pass state to the model and get an action and critic 
                 # action = env.action_space.sample()
 
-                state = ops.convert_to_tensor(state)
-                state = ops.expand_dims(state, axis=0)
+                state = tf.convert_to_tensor(state)
+                state = tf.expand_dims(state, axis=0)
                 actions, critic = model(state)
 
                 # 2.) Select action
@@ -101,8 +100,8 @@ def trainNetwork():
                 
             
                 # 4.) Record results in episode lists
-                action_history.append(ops.convert_to_tensor(ops.log(actions[0, action]), dtype=np.float32))
-                critic_history.append(ops.convert_to_tensor(critic[0][0], dtype=np.float32))
+                action_history.append(tf.convert_to_tensor(tf.math.log(actions[0, action]), dtype=np.float32))
+                critic_history.append(tf.convert_to_tensor(critic[0][0], dtype=np.float32))
                 rewards_history.append(reward)
                 
                 # 5.) Break out of episode if end is reached
@@ -145,7 +144,7 @@ def trainNetwork():
 
                 # Use huber loss for critic. Use critic history and rewards earned
                 critic_losses.append(
-                    lossFunction(ops.expand_dims(value, 0), ops.expand_dims(ret, 0))
+                    lossFunction(tf.expand_dims(value, 0), tf.expand_dims(ret, 0))
                 )
 
             # Backpropagation

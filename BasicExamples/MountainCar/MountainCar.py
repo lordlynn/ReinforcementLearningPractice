@@ -1,6 +1,5 @@
 import os
 os.environ["KERAS_BACKEND"] = "tensorflow"      # Set keras bacedn to ensure tesnorflow is used for computations
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import numpy as np
 import gymnasium as gym
@@ -8,11 +7,19 @@ import gymnasium as gym
 import keras
 from keras import layers
 
-from keras import ops
 import tensorflow as tf
 
 # plotting the progress
 import matplotlib.pyplot as plt
+
+
+
+# Check for GPU availability
+print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+if len(tf.config.experimental.list_physical_devices('GPU')) == 0:
+    raise SystemError('GPU device not found')
+
+
 
 # ----------------- Network Architecure variables ----------------
 model = None
@@ -34,7 +41,7 @@ gamma = 1
 # --------------- Gymnaisum environment variables ----------------
 max_steps_per_episode = 2500
 # render_mode="human"
-env = gym.make("MountainCar-v0", max_episode_steps=max_steps_per_episode)
+env = gym.make("MountainCar-v0",render_mode="human", max_episode_steps=max_steps_per_episode)
 observation, info = env.reset()
 action_space = [0, 1, 2]
 
@@ -87,9 +94,8 @@ def trainNetwork():
             
             for stp in range(max_steps_per_episode):
                 # 1.) Pass state to the model and get an action and critic 
-
-                state = ops.convert_to_tensor(state)
-                state = ops.expand_dims(state, axis=0)
+                state = tf.convert_to_tensor(state)
+                state = tf.expand_dims(state, axis=0)
                 actions, critic = model(state)
 
                 # 2.) Select action
@@ -100,8 +106,8 @@ def trainNetwork():
                 
             
                 # 4.) Record results in episode lists
-                action_history.append(ops.convert_to_tensor(ops.log(actions[0][action]), dtype=np.float32))
-                critic_history.append(ops.convert_to_tensor(critic[0][0], dtype=np.float32))
+                action_history.append(tf.convert_to_tensor(tf.math.log(actions[0][action]), dtype=np.float32))
+                critic_history.append(tf.convert_to_tensor(critic[0][0], dtype=np.float32))
                 
                 
                 if (abs(state[1]) > maxSpeed):
@@ -160,7 +166,7 @@ def trainNetwork():
 
                 # Use huber loss for critic. Use critic history and rewards earned
                 critic_losses.append(
-                    lossFunction(ops.expand_dims(value, 0), ops.expand_dims(ret, 0))
+                    lossFunction(tf.expand_dims(value, 0), tf.expand_dims(ret, 0))
                 )
 
             # Backpropagation
