@@ -14,11 +14,6 @@ import matplotlib.pyplot as plt
 
 
 
-# Check for GPU availability
-print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
-if len(tf.config.experimental.list_physical_devices('GPU')) == 0:
-    raise SystemError('GPU device not found')
-
 
 
 # ----------------- Network Architecure variables ----------------
@@ -36,12 +31,11 @@ rewards_history = []
 running_reward = 0
 episode_count = 0
 eps = np.finfo(np.float32).eps.item()  
-gamma = 1
+gamma = 0.99
 
 # --------------- Gymnaisum environment variables ----------------
-max_steps_per_episode = 2500
-# render_mode="human"
-env = gym.make("MountainCar-v0",render_mode="human", max_episode_steps=max_steps_per_episode)
+max_steps_per_episode = 4000
+env = gym.make("MountainCar-v0", max_episode_steps=max_steps_per_episode)
 observation, info = env.reset()
 action_space = [0, 1, 2]
 
@@ -65,7 +59,7 @@ def setupNetwork():
 
     # Overall model
     model = keras.Model(inputs=inputs, outputs=[action, critic])
-    # model.compile(optimizer=optimizer, loss=lossFunction)
+    model.compile(optimizer=optimizer, loss=lossFunction)
 
 
 
@@ -86,8 +80,6 @@ def trainNetwork():
         
         
         state, info = env.reset()
-        closestPlace = state[0]
-        maxSpeed = abs(state[1])
 
         # Use gradient tape to perform training
         with tf.GradientTape() as tape:
@@ -110,21 +102,17 @@ def trainNetwork():
                 critic_history.append(tf.convert_to_tensor(critic[0][0], dtype=np.float32))
                 
                 
-                if (abs(state[1]) > maxSpeed):
-                    reward += 2 + (abs(state[1]) / 0.07)*10
-                    maxSpeed = abs(state[1])
-
-                rewards_history.append(0.1*reward)
+                # Add speed modifier to reward   
+                reward += (abs(state[1]) / 0.07)
+            
+                rewards_history.append(reward)
                 
                
-                
                 # 5.) Break out of episode if end is reached
                 if (truncated):
-                    finishedFlag = False
                     break
                 elif (terminated):
-                    finishedFlag = True
-                    rewards_history[-1] += 2500
+                    rewards_history[-1] += 1000
                     break
             
             
@@ -134,18 +122,17 @@ def trainNetwork():
             # - At each timestep what was the total reward received after that timestep
             # - Rewards in the past are discounted by multiplying them with gamma
             # - These are the labels for our critic
-            # returns = []
-            # discounted_sum = 0
-            # for r in rewards_history[::-1]:
-            #     discounted_sum = r + gamma * discounted_sum
-            #     returns.insert(0, discounted_sum)
+            returns = []
+            discounted_sum = 0
+            for r in rewards_history[::-1]:
+                discounted_sum = r + gamma * discounted_sum
+                returns.insert(0, discounted_sum)
 
-            returns = rewards_history
 
             # Normalize - standard normal
-            returns = np.array(returns)
-            returns = (returns - np.mean(returns)) / (np.std(returns) + eps)
-            returns = returns.tolist()
+            # returns = np.array(returns)
+            # returns = (returns - np.mean(returns)) / (np.std(returns) + eps)
+            # returns = returns.tolist()
 
             # Calculating loss values to update our network
             history = zip(action_history, critic_history, returns)
@@ -182,19 +169,28 @@ def trainNetwork():
 
         # Log details
         episode_count += 1
-        print(f"Episode {episode_count}\tReward: {sum(rewards_history)}\tLoss: {loss_value:.2f}")
-
-        # if :                  # Condition to consider the task solved
-        #     print(f"Solved at episode {episode_count}")
-        #     break
-        
         reward_progress.append(sum(rewards_history))
+        avgReward = np.mean(reward_progress[max(0, episode_count-20):episode_count])
+        
+        
+        print(f"Episode {episode_count}\tReward: {sum(rewards_history):.2f}\tAVG Reward: {avgReward:.2f}\tLoss: {loss_value:.2f}")
+
+        if (episode_count % 10 == 0):
+            keras.models.save_model(model, "MountainCar.keras")
+
+        if (episode_count > 100):
+            break
+        
 
 
 
 
 
 setupNetwork()
+
+model = keras.models.load_model("MountainCar.keras")
+model.compile(optimizer=optimizer, loss=lossFunction)
+
 trainNetwork()
 
 plt.figure(1)
