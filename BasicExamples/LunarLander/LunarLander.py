@@ -159,9 +159,11 @@ class Agent(object):
         self.q_eval.save(self.modelFile)
         pass
 
-    def load_model(self):
-        self.q_eval = keras.models.load_model(self.modelFile)
-        pass
+    def load_model(self, modelFile):
+        model = keras.models.load_model(modelFile)
+        model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.alpha), loss='mse')
+        self.q_eval = model
+        
         
 
 
@@ -169,10 +171,10 @@ class Agent(object):
 
 env = gym.make("LunarLander-v2")
 
-# Potentialy make the memSize 100k instead of 10k. See how this goes first
+
 agent = Agent(gamma=0.99, epsilon=1.0, alpha=0.0005, inputDims=8, nActions=4, memSize=100000, batchSize=64, epsilonEnd=0.010)
 
-# agent.load_model()
+agent.load_model("./model/LunarLander_420Epochs.h5")
 
 scores = []
 eps_history = []
