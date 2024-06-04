@@ -176,7 +176,7 @@ def trainNetwork():
         print(f"Episode {episode_count}\tReward: {sum(rewards_history):.2f}\tAVG Reward: {avgReward:.2f}\tLoss: {loss_value:.2f}")
 
         if (episode_count % 10 == 0):
-            keras.models.save_model(model, "MountainCar.keras")
+            keras.models.save_model(model, "./Models/MountainCar.keras")
 
         if (episode_count > 100):
             break
@@ -188,7 +188,7 @@ def trainNetwork():
 
 setupNetwork()
 
-model = keras.models.load_model("MountainCar.keras")
+model = keras.models.load_model("./Models/MountainCar_500Epochs.keras")
 model.compile(optimizer=optimizer, loss=lossFunction)
 
 trainNetwork()

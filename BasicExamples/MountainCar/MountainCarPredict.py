@@ -37,24 +37,10 @@ action_space = [0, 1, 2]
 
 
 def setupNetwork(modelName):
-    # global optimizer, lossFunction
     global model
 
     optimizer = keras.optimizers.Adam(learning_rate=0.01)
     lossFunction = keras.losses.Huber()
-
-    # # Input layer for CartPole observations 
-    # inputs = layers.Input(shape=(num_inputs,))
-
-    # # Hidden layer
-    # common = layers.Dense(num_hidden, activation="relu")(inputs)
-    
-    # # Actor and critic outputs
-    # action = layers.Dense(num_actions, activation="softmax")(common)
-    # critic = layers.Dense(1)(common)
-
-    # # Overall model
-    # model = keras.Model(inputs=inputs, outputs=[action, critic])
 
     model = keras.models.load_model(modelName)
     model.compile(optimizer=optimizer, loss=lossFunction)
@@ -123,7 +109,7 @@ def trainNetwork():
 
 
 
-setupNetwork("MountainCar_500Epochs.keras")
+setupNetwork("./Models/MountainCar_500Epochs.keras")
 
 trainNetwork()
 
