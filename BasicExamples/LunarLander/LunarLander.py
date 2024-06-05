@@ -84,16 +84,6 @@ class Agent(object):
         self.q_eval = self.build_network(alpha, nActions, inputDims)
 
     def build_network(self, learningRate, nActions, input_dims):
-        # inputs = layers.Input(shape=(input_dims,))
-
-        # HL1 = layers.Dense(64, activation='relu') (inputs)
-        # HL2 = layers.Dense(256, activation='relu') (HL1)
-        # HL3 = layers.Dense(128, activation='relu') (HL2)
-        
-        # outputs = layers.Dense(nActions, activation='softmax') (HL3)
-        
-        # model = keras.Model(inputs=inputs, outputs=outputs)
-
         model = keras.Sequential([layers.Dense(256, input_shape=(input_dims,)),
                                 layers.Activation('relu'),
                                 layers.Dense(256),
@@ -119,6 +109,10 @@ class Agent(object):
         else:
             actions = self.q_eval.predict(state, verbose=0)
             action = np.argmax(actions)
+
+        # Decrease epsilon after each action
+        if (self.epsilon > self.epsilonMin):
+            self.epsilon = self.epsilon * self.epsilonDec
 
         return action
 
@@ -150,8 +144,6 @@ class Agent(object):
         self.q_eval.fit(state, q_target, verbose=0)
         
 
-        if (self.epsilon > self.epsilonMin):
-            self.epsilon = self.epsilon * self.epsilonDec
 
         
 
@@ -172,9 +164,9 @@ class Agent(object):
 env = gym.make("LunarLander-v2")
 
 
-agent = Agent(gamma=0.99, epsilon=1.0, alpha=0.0005, inputDims=8, nActions=4, memSize=100000, batchSize=64, epsilonEnd=0.010)
+agent = Agent(gamma=0.99, epsilon=1.0, alpha=0.0005, inputDims=8, nActions=4, memSize=100000, batchSize=16, epsilonEnd=0.010)
 
-agent.load_model("./model/LunarLander_420Epochs.h5")
+agent.load_model("./Models/LunarLander_500Epochs.h5")
 
 scores = []
 eps_history = []
