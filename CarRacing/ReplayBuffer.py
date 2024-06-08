@@ -6,12 +6,17 @@ class ReplayBuffer(object):
         self.discrete = discrete
 
         # What is the use of this?? discrete vs continuous
-        dtype = np.int8 if self.discrete else np.float32
+        _dtype = np.int8 if self.discrete else np.float32
 
-        self.stateMemory = np.zeros((self.memSize, inputShape))
-        self.newStateMemory = np.zeros((self.memSize, inputShape))
+        # Handle case when inputShape is multiDimensional
+        if (isinstance(inputShape, int)):   
+            self.stateMemory = np.zeros((self.memSize, inputShape))
+            self.newStateMemory = np.zeros((self.memSize, inputShape))
+        else:
+            self.stateMemory = np.zeros((self.memSize, *inputShape))
+            self.newStateMemory = np.zeros((self.memSize, *inputShape))
 
-        self.actionMemory = np.zeros((self.memSize, nActions))
+        self.actionMemory = np.zeros((self.memSize, nActions), dtype=_dtype)
         self.rewardMemory = np.zeros(self.memSize)
         self.terminalMemory = np.zeros(self.memSize, dtype=np.float32)
 
@@ -54,4 +59,4 @@ class ReplayBuffer(object):
         terminal = self.terminalMemory[batch]
 
         return states, actions, rewards, newStates, terminal 
-
+        

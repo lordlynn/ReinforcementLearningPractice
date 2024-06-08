@@ -6,6 +6,7 @@ import numpy as np
 import ReplayBuffer
 import pickle
 
+
 class Agent(object):
     def __init__(self, learningRate, gamma, nActions, epsilon, batchSize, inputDims, epsilonDec=0.996, epsilonEnd=0.01, memSize=1000000):
         self.actionsSpace = [i for i in range(nActions)]
@@ -23,19 +24,29 @@ class Agent(object):
         
 
     def build_network(self):
-        inputs = layers.Input(shape=(self.inputDims,))
+        if (isinstance(self.inputDims, int)):
+            inputs = layers.Input(shape=(self.inputDims,))
+        else:
+            inputs = layers.Input(shape=self.inputDims)
 
-        HL1 = layers.Dense(256, activation='relu') (inputs)
-        HL2 = layers.Dense(128, activation='relu') (HL1)
-        HL3 = layers.Dense(64, activation='relu') (HL2)
+
+        HL1 = layers.Conv2D(256, kernel_size=(3, 3), padding='same', activation='relu') (inputs)
+        MP1 = layers.MaxPooling2D((2, 2)) (HL1)
+        HL2 = layers.Conv2D(128, kernel_size=(3, 3), padding='same', activation='relu') (MP1)
+        MP2 = layers.MaxPooling2D((2, 2)) (HL2)
+        HL3 = layers.Conv2D(64, kernel_size=(3, 3), padding='same', activation='relu') (MP2)
+        MP3 = layers.MaxPooling2D((2, 2)) (HL3)
         
-        outputs = layers.Dense(self.nActions) (HL3)
+        GP = layers.GlobalAveragePooling2D() (MP3)
+
+        outputs = layers.Dense(self.nActions) (GP)
         
         model = keras.models.Model(inputs=inputs, outputs=outputs)
 
         model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.learningRate), loss='mse')
 
         self.q_eval = model
+
 
     def remember(self, state, action, reward, newState, done):
         self.memory.store_transition(state, action, reward, newState, done)
@@ -63,7 +74,7 @@ class Agent(object):
         
         state, action, reward, newState, done = self.memory.sample_buffer(self.batchSize)
 
-        # Since this is discrete go back ferom one hot encoding
+        # Since this is discrete go back from one hot encoding
         action_values = np.array(self.actionsSpace, dtype=np.int8)
         action_indices = np.dot(action, action_values)
         action_indices = np.array(action_indices, dtype=np.int32)
