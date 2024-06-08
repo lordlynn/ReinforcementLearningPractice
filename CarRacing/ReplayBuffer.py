@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 
 class ReplayBuffer(object):
     def __init__(self, maxSize, inputShape, nActions, discrete=False):
@@ -60,3 +61,53 @@ class ReplayBuffer(object):
 
         return states, actions, rewards, newStates, terminal 
         
+    def save_buffer(self, fileName):
+        with open(str(fileName) + "_states" + '.pkl', 'wb') as file:
+            pickle.dump(self.stateMemory, file)
+
+        with open(str(fileName) + "_newStates" + '.pkl', 'wb') as file:
+            pickle.dump(self.newStateMemory, file)
+
+        with open(str(fileName) + "_reward" + '.pkl', 'wb') as file:
+            pickle.dump(self.rewardMemory, file)
+
+        with open(str(fileName) + "_action" + '.pkl', 'wb') as file:
+            pickle.dump(self.actionMemory, file)
+
+        with open(str(fileName) + "_terminal" + '.pkl', 'wb') as file:
+            pickle.dump(self.terminalMemory, file)
+
+    def load_buffer(self, fileName):
+        self.clearBuffer()
+        sizes = []
+
+        with open(str(fileName) + "_states" + '.pkl', 'rb') as file:
+            self.stateMemory = pickle.load(file)
+    
+        with open(str(fileName) + "_newStates" + '.pkl', 'rb') as file:
+            self.newStateMemory = pickle.load(file)
+
+        with open(str(fileName) + "_reward" + '.pkl', 'rb') as file:
+            self.rewardMemory = pickle.load(file)
+
+        with open(str(fileName) + "_action" + '.pkl', 'rb') as file:
+            self.actionMemory = pickle.load(file)
+
+        with open(str(fileName) + "_terminal" + '.pkl', 'rb') as file:
+            self.terminalMemory = pickle.load(file)
+
+        sizes.append(self.stateMemory.shape[0])
+        sizes.append(self.newStateMemory.shape[0])
+        sizes.append(self.rewardMemory.shape[0])
+        sizes.append(self.actionMemory.shape[0])
+        sizes.append(self.terminalMemory.shape[0]) 
+
+        if (len(set(sizes)) == 1):
+             self.memPtr = sizes[0]
+
+    def clearBuffer(self):
+        del self.stateMemory
+        del self.newStateMemory
+        del self.rewardMemory
+        del self.actionMemory
+        del self.terminalMemory
