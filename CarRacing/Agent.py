@@ -98,8 +98,8 @@ class Agent(object):
     def save_model(self, modelFile, buffFile):
         self.q_eval.save(modelFile)
 
-        with open(str(buffFile) + '.pkl', 'wb') as file:
-            pickle.dump(self.memory, file)
+        # with open(str(buffFile) + '.pkl', 'wb') as file:
+        #     pickle.dump(self.memory, file)
     
 
     def load_model(self, modelFile, buffFile):
@@ -107,5 +107,5 @@ class Agent(object):
         model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.learningRate), loss='mse')
         self.q_eval = model
         
-        with open(str(buffFile) + '.pkl', 'rb') as file:
-            self.memory = pickle.load(file)
+        # with open(str(buffFile) + '.pkl', 'rb') as file:
+        #     self.memory = pickle.load(file)

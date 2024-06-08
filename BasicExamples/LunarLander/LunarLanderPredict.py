@@ -18,9 +18,6 @@ import matplotlib.pyplot as plt
 
 # ----------------- Network Architecure variables ----------------
 model = None
-# num_inputs = 2                                                      # [position, velocity]
-# num_actions = 3                                                     # [0 - accelerate left, 1 - don't accelerate, 2 - accelerate right]
-# num_hidden = 128                                                    # Number of nodes in hidden layer
 
 # -------------------- Variables for training --------------------
 optimizer = None
