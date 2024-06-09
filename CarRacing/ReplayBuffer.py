@@ -9,7 +9,7 @@ class ReplayBuffer(object):
         # Handle case when state inputShape is multiDimensional
         if (isinstance(inputShape, int)):   
             self.stateMemory = np.zeros((self.memSize, inputShape), dtype=stateType)
-            self.newStateMemory = np.zeros((self.memSize, inputShape), stateType)
+            self.newStateMemory = np.zeros((self.memSize, inputShape), dtype=stateType)
         else:
             self.stateMemory = np.zeros((self.memSize, *inputShape), dtype=stateType)
             self.newStateMemory = np.zeros((self.memSize, *inputShape), dtype=stateType)

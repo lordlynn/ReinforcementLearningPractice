@@ -5,7 +5,6 @@ import gymnasium as gym
 import Agent
 
 
-
 def main(n_epochs):
     # Run training loop
     scores = []
@@ -15,6 +14,7 @@ def main(n_epochs):
         done = False
         score = 0
         observation, info = env.reset()
+        step = 1
 
         while not done:
             action = agent.choose_action(observation)
@@ -28,12 +28,14 @@ def main(n_epochs):
             agent.remember(observation, action, reward, newObservation, done)
 
             observation = newObservation
+            
+            # Train every 4 steps through environment
+            if (step % 4 == 0):
+                agent.learn()
+                keras.backend.clear_session()
 
-            agent.learn()
-
-            keras.backend.clear_session()
-
-
+            step += 1
+        
         with open("scores.txt", "a") as fp:
             fp.write(str(score)+"\n")
 
@@ -42,7 +44,6 @@ def main(n_epochs):
         avg_scores = np.mean(scores[max(0, i-20):i+1])
 
         print(f"Episode {i}\tScore {score:.2f}\tAverage Score {avg_scores:.2f}")
-
 
     agent.save_model(modelSaveFile, buffFile)
     
@@ -56,7 +57,7 @@ if __name__ == "__main__":
     modelSaveFile = "DQN_MC.keras"
     buffFile = "RB"
 
-    env = gym.make("CarRacing-v2", continuous=False)
+    env = gym.make("CarRacing-v2", max_episode_steps=200, continuous=False)
 
     agent = Agent.Agent(gamma=0.99, epsilon=0.010, learningRate=0.001, inputDims=(96,96,3), nActions=5, memSize=20000, batchSize=64, epsilonEnd=0.010)
 
