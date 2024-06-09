@@ -20,7 +20,7 @@ class Agent(object):
         self.epsilonMin = epsilonEnd                        # Minimum value of epsilon
         self.batchSize = batchSize                          # Training batch size
 
-        self.memory = ReplayBuffer.ReplayBuffer(memSize, self.inputDims, nActions, discrete=True)
+        self.memory = ReplayBuffer.ReplayBuffer(memSize, self.inputDims, nActions, discrete=True, stateType=np.uint8)
         
 
     def build_network(self):
@@ -98,8 +98,7 @@ class Agent(object):
     def save_model(self, modelFile, buffFile):
         self.q_eval.save(modelFile)
 
-        # with open(str(buffFile) + '.pkl', 'wb') as file:
-        #     pickle.dump(self.memory, file)
+        self.memory.save_buffer(buffFile)
     
 
     def load_model(self, modelFile, buffFile):
@@ -107,5 +106,4 @@ class Agent(object):
         model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.learningRate), loss='mse')
         self.q_eval = model
         
-        # with open(str(buffFile) + '.pkl', 'rb') as file:
-        #     self.memory = pickle.load(file)
+        self.memory.load_buffer(buffFile)

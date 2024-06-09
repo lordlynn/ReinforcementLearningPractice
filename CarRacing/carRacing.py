@@ -5,64 +5,63 @@ import gymnasium as gym
 import Agent
 
 
-loadModelFile = "DQN_MC.keras"
-loadBuffFile = "RB"
-modelSaveFile = "DQN_MC.keras"
-buffFile = "RB"
+
+def main(n_epochs):
+    # Run training loop
+    scores = []
+    n_games = n_epochs
+
+    for i in range(n_games):
+        done = False
+        score = 0
+        observation, info = env.reset()
+
+        while not done:
+            action = agent.choose_action(observation)
+
+            newObservation, reward, done, truncated, info = env.step(action)
+
+            if (truncated):
+                done = True
+
+            score += reward
+            agent.remember(observation, action, reward, newObservation, done)
+
+            observation = newObservation
+
+            agent.learn()
+
+            keras.backend.clear_session()
 
 
+        with open("scores.txt", "a") as fp:
+            fp.write(str(score)+"\n")
 
-env = gym.make("CarRacing-v2", continuous=False)
+        scores.append(score)
 
-agent = Agent.Agent(gamma=0.99, epsilon=1.0, learningRate=0.001, inputDims=(96,96,3), nActions=5, memSize=20000, batchSize=64, epsilonEnd=0.010)
+        avg_scores = np.mean(scores[max(0, i-20):i+1])
 
-# agent.build_network()
-
-agent.load_model(loadModelFile, loadBuffFile)
-
-
+        print(f"Episode {i}\tScore {score:.2f}\tAverage Score {avg_scores:.2f}")
 
 
-# Run training loop
-scores = []
-eps_history = []
-n_games = 500
-for i in range(n_games):
-    done = False
-    score = 0
-    observation, info = env.reset()
-
-    while not done:
-        action = agent.choose_action(observation)
-
-        newObservation, reward, done, truncated, info = env.step(action)
-
-        if (truncated):
-            done = True
-
-        score += reward
-        agent.remember(observation, action, reward, newObservation, done)
-
-        observation = newObservation
-
-        agent.learn()
-
-        keras.backend.clear_session()
-
-
-    with open("scores.txt", "a") as fp:
-        fp.write(str(score)+"\n")
-
-    scores.append(score)
-
-    avg_scores = np.mean(scores[max(0, i-20):i+1])
-
-    print(f"Episode {i}\tScore {score:.2f}\tAverage Score {avg_scores:.2f}")
-
-    if (i % 1 == 0):# and i > 0):
-        agent.save_model(modelSaveFile, buffFile)
+    agent.save_model(modelSaveFile, buffFile)
     
     
 
 
 
+if __name__ == "__main__":
+    loadModelFile = "DQN_MC.keras"
+    loadBuffFile = "RB"
+    modelSaveFile = "DQN_MC.keras"
+    buffFile = "RB"
+
+    env = gym.make("CarRacing-v2", continuous=False)
+
+    agent = Agent.Agent(gamma=0.99, epsilon=1.0, learningRate=0.001, inputDims=(96,96,3), nActions=5, memSize=20000, batchSize=64, epsilonEnd=0.010)
+
+    # agent.build_network()
+
+    agent.load_model(loadModelFile, loadBuffFile)
+
+    main(5)

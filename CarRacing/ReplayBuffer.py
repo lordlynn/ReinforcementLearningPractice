@@ -2,56 +2,67 @@ import numpy as np
 import pickle
 
 class ReplayBuffer(object):
-    def __init__(self, maxSize, inputShape, nActions, discrete=False):
+    def __init__(self, maxSize, inputShape, nActions, discrete=False, stateType=np.float32): 
         self.memSize = maxSize
         self.discrete = discrete
 
-        # What is the use of this?? discrete vs continuous
-        _dtype = np.int8 if self.discrete else np.float32
-
-        # Handle case when inputShape is multiDimensional
+        # Handle case when state inputShape is multiDimensional
         if (isinstance(inputShape, int)):   
-            self.stateMemory = np.zeros((self.memSize, inputShape))
-            self.newStateMemory = np.zeros((self.memSize, inputShape))
+            self.stateMemory = np.zeros((self.memSize, inputShape), dtype=stateType)
+            self.newStateMemory = np.zeros((self.memSize, inputShape), stateType)
         else:
-            self.stateMemory = np.zeros((self.memSize, *inputShape))
-            self.newStateMemory = np.zeros((self.memSize, *inputShape))
+            self.stateMemory = np.zeros((self.memSize, *inputShape), dtype=stateType)
+            self.newStateMemory = np.zeros((self.memSize, *inputShape), dtype=stateType)
 
+
+        # discrete vs continuous action space
+        _dtype = np.int8 if self.discrete else np.float32
         self.actionMemory = np.zeros((self.memSize, nActions), dtype=_dtype)
-        self.rewardMemory = np.zeros(self.memSize)
-        self.terminalMemory = np.zeros(self.memSize, dtype=np.float32)
+
+
+        self.rewardMemory = np.zeros(self.memSize, dtype=np.float32)
+        self.terminalMemory = np.zeros(self.memSize, dtype=np.int8)
 
         self.memPtr = 0
+        self.rollOver = 0
     
 
     def store_transition(self, state, action, reward, newState, done):
-        # First available memory
+        # If at end of array roll pointer back to start
         if (self.memPtr >= self.memSize):
             self.memPtr = 0
+            self.rollOver = 1
             print("**Replay buffer pointer rollover")
 
-        self.stateMemory[self.memPtr ] = state
-        self.newStateMemory[self.memPtr ] = newState
 
-        self.rewardMemory[self.memPtr ] = reward
+        self.stateMemory[self.memPtr] = state
+        self.newStateMemory[self.memPtr] = newState
+
+        self.rewardMemory[self.memPtr] = reward
 
         # Should be false when episode is over, and true when episode is still going 
-        self.terminalMemory[self.memPtr ] = 1 - int(done)
+        self.terminalMemory[self.memPtr] = 1 - int(done)
 
         # If discrete we one hot encode
         if self.discrete:
             actions = np.zeros(self.actionMemory.shape[1])
             actions[action] = 1.0
-            self.actionMemory[self.memPtr ] = actions
+            self.actionMemory[self.memPtr] = actions
         else:
-            self.actionMemory[self.memPtr ] = action
+            self.actionMemory[self.memPtr] = action
 
         self.memPtr += 1
 
 
     def sample_buffer(self, batchSize):
-        maxMem = min(self.memPtr, self.memSize)
-        batch = np.random.choice(maxMem, batchSize)
+        # If a rollover has not happened yet get batch from available samples
+        if (self.rollOver == 0):
+            maxMem = min(self.memPtr, self.memSize)
+            batch = np.random.choice(maxMem, batchSize)
+
+        # If a rollover has happened, use the entire buffer
+        else:
+            batch = np.random.choice(self.memSize, batchSize)
 
         states = self.stateMemory[batch]
         newStates = self.newStateMemory[batch]
@@ -60,6 +71,7 @@ class ReplayBuffer(object):
         terminal = self.terminalMemory[batch]
 
         return states, actions, rewards, newStates, terminal 
+        
         
     def save_buffer(self, fileName):
         with open(str(fileName) + "_states" + '.pkl', 'wb') as file:
@@ -77,9 +89,12 @@ class ReplayBuffer(object):
         with open(str(fileName) + "_terminal" + '.pkl', 'wb') as file:
             pickle.dump(self.terminalMemory, file)
 
+        with open(str(fileName) + "_pointer" + '.pkl', 'wb') as file:
+            pickle.dump([self.memPtr, self.rollOver], file)
+
+
     def load_buffer(self, fileName):
         self.clearBuffer()
-        sizes = []
 
         with open(str(fileName) + "_states" + '.pkl', 'rb') as file:
             self.stateMemory = pickle.load(file)
@@ -95,15 +110,12 @@ class ReplayBuffer(object):
 
         with open(str(fileName) + "_terminal" + '.pkl', 'rb') as file:
             self.terminalMemory = pickle.load(file)
+        
+        with open(str(fileName) + "_pointer" + '.pkl', 'rb') as file:
+            temp = pickle.load(file)
+            self.memPtr = temp[0]
+            self.rollOver = temp[1]
 
-        sizes.append(self.stateMemory.shape[0])
-        sizes.append(self.newStateMemory.shape[0])
-        sizes.append(self.rewardMemory.shape[0])
-        sizes.append(self.actionMemory.shape[0])
-        sizes.append(self.terminalMemory.shape[0]) 
-
-        if (len(set(sizes)) == 1):
-             self.memPtr = sizes[0]
 
     def clearBuffer(self):
         del self.stateMemory
