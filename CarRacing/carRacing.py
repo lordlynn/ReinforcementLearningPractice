@@ -57,7 +57,7 @@ if __name__ == "__main__":
     modelSaveFile = "DQN_MC.keras"
     buffFile = "RB"
 
-    env = gym.make("CarRacing-v2", max_episode_steps=200, continuous=False)
+    env = gym.make("CarRacing-v2", continuous=False)
 
     agent = Agent.Agent(gamma=0.99, epsilon=0.010, learningRate=0.001, inputDims=(96,96,3), nActions=5, memSize=20000, batchSize=64, epsilonEnd=0.010)
 
