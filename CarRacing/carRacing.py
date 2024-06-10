@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     agent = Agent.Agent(gamma=0.99, epsilon=0.010, learningRate=0.001, inputDims=(96,96,3), nActions=5, memSize=20000, batchSize=64, epsilonEnd=0.010)
 
-    #agent.build_network()
+    # agent.build_network()
 
     agent.load_model(loadModelFile, loadBuffFile)
 
