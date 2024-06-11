@@ -63,6 +63,12 @@ class Agent(object):
         self.memory.store_transition(state, action, reward, newState, done)
 
     def choose_action(self, state):
+        # state is only None at the start of each game
+        if (state is None):
+            action = np.random.choice(self.actionsSpace)
+            print("None Sate")
+            return action
+
         state = state[np.newaxis, :]
         
         rand = np.random.random()

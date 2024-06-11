@@ -72,8 +72,6 @@ class ReplayBuffer(object):
 
         # If using consecutive, use batch and next n frames. use last reward, action, done
         if (consecutive is not None):
-  
-            
             states = np.array([np.transpose(self.stateMemory[b:b+consecutive], (1, 2, 0)) for b in batch])
             newStates = np.array([np.transpose(self.newStateMemory[b:b+consecutive], (1, 2, 0)) for b in batch])
 
@@ -140,3 +138,32 @@ class ReplayBuffer(object):
         del self.rewardMemory
         del self.actionMemory
         del self.terminalMemory
+
+    # helper function for training when consecutive frames are needed
+    def lastFrames(self):
+        if (self.rollOver == 0):
+            maxMem = min(self.memPtr, self.memSize)
+
+            if (maxMem < 4):
+                return None
+            else:
+                maxMem -= 4
+                states = np.transpose(self.newStateMemory[maxMem:maxMem+4, :, :], (1, 2, 0))
+
+        # If a rollover has happened, use the entire buffer
+        else:
+            maxMem = self.memPtr
+
+            if (maxMem < 4):
+                H = maxMem - 4
+
+                t1 = self.newStateMemory[0:maxMem, :, :]
+                t2 = self.newStateMemory[H-1:-1, :, :]
+
+                states = np.transpose(np.concatenate((t2, t1), axis=0), (1, 2, 0))
+            else:
+                maxMem -= 4
+                states = np.transpose(self.newStateMemory[maxMem:maxMem+4, :, :], (1, 2, 0))
+
+
+        return states

@@ -21,10 +21,9 @@ def main(n_epochs):
 
         observation, info = env.reset()
 
-        temp = rgb2gray(observation)        
-        state = np.transpose([temp, temp, temp, temp], (1, 2, 0))
-
         while not done:
+            state = agent.memory.lastFrames()
+
             action = agent.choose_action(state)
 
             newObservation, reward, done, truncated, info = env.step(action)
@@ -38,8 +37,8 @@ def main(n_epochs):
             observation = newObservation
             
             
-            # Train every 4 steps through environment
-            if (step % 4 == 0):
+            # Train every 2 steps through environment
+            if (step % 2 == 0):
                 
                 agent.learn()
                 keras.backend.clear_session()
