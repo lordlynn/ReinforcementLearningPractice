@@ -5,7 +5,10 @@ scores  = []
 
 
 # Read scores in from file
-with open("scores.txt", "r") as file: 
+# with open("scores.txt", "r") as file: 
+#     temp = file.readlines(-1)
+
+with open("scores_LargeBuff.txt", "r") as file: 
     temp = file.readlines(-1)
 
 for i in range(len(temp)):

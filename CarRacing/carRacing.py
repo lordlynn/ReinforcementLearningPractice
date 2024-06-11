@@ -36,8 +36,8 @@ def main(n_epochs):
 
             step += 1
         
-        with open("scores.txt", "a") as fp:
-            fp.write(str(score)+"\n")
+        # with open("scores.txt", "a") as fp:
+        #     fp.write(str(score)+"\n")
 
         scores.append(score)
 
@@ -45,7 +45,7 @@ def main(n_epochs):
 
         print(f"Episode {i}\tScore {score:.2f}\tAverage Score {avg_scores:.2f}")
 
-    agent.save_model(modelSaveFile, buffFile)
+    # agent.save_model(modelSaveFile, buffFile)
     
     
 
@@ -54,15 +54,15 @@ def main(n_epochs):
 if __name__ == "__main__":
     loadModelFile = "DQN_MC.keras"
     loadBuffFile = "RB"
-    modelSaveFile = "DQN_MC.keras"
+    modelSaveFile = "DQN_MCb.keras"
     buffFile = "RB"
 
     env = gym.make("CarRacing-v2", continuous=False)
 
     agent = Agent.Agent(gamma=0.99, epsilon=0.010, learningRate=0.001, inputDims=(96,96,3), nActions=5, memSize=20000, batchSize=64, epsilonEnd=0.010)
 
-    # agent.build_network()
+    agent.build_network()
 
-    agent.load_model(loadModelFile, loadBuffFile)
+    # agent.load_model(loadModelFile, loadBuffFile)
 
     main(5)
