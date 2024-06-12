@@ -24,8 +24,10 @@ def main(n_epochs):
         observation, info = env.reset()
 
         while not done:
-            # Get the most recent sample of frames from the buffer
+            # Get the most recent sample of frames from the buffer and normalize
             state = agent.sampleForAction()
+            if (state is not None):
+                state = np.divide(state, 255, dtype=np.float32)
 
             # Use the most recent frames to predict next action
             action = agent.choose_action(state)
@@ -65,17 +67,17 @@ def main(n_epochs):
 
 
 if __name__ == "__main__":
-    loadModelFile = "DQN_NEW.keras"
+    loadModelFile = "DQN_NEW"
     loadBuffFile = "RB"
-    modelSaveFile = "DQN_NEW.keras"
+    modelSaveFile = "DQN_NEW"
     buffFile = "RB"
 
     env = gym.make("CarRacing-v2", continuous=False)
 
-    agent = Agent.Agent(gamma=0.99, epsilon=0.010, learningRate=0.001, inputDims=(96,96,4), nActions=5, memSize=100000, batchSize=64, epsilonEnd=0.010)
+    agent = Agent.Agent(gamma=0.99, epsilon=1.00, learningRate=0.0001, inputDims=(96,96,4), nActions=5, memSize=100000, batchSize=32, epsilonEnd=0.1, epsilonDec=0.9999)
 
     # agent.build_network()
 
     agent.load_model(loadModelFile, loadBuffFile)
 
-    main(5)
+    main(1)

@@ -2,6 +2,7 @@ import keras
 from keras import layers
 import keras.optimizers
 import numpy as np
+import pickle
 
 import ReplayBuffer
 
@@ -97,6 +98,10 @@ class Agent(object):
             return
         
         state, action, reward, newState, done = self.memory.sample_buffer(self.batchSize)
+        
+        # Normalize to floats between 0 and 1
+        state = np.divide(state, 255, dtype=np.float32)
+        newState = np.divide(newState, 255, dtype=np.float32)
 
         q_eval = self.q_eval(state)
         q_next = self.q_eval(newState)
@@ -115,15 +120,25 @@ class Agent(object):
     
 
     def save_model(self, modelFile, buffFile):
-        self.q_eval.save(modelFile)
+        self.q_eval.save(modelFile + ".keras")
 
         self.memory.saveGames(buffFile)
+
+        with open(modelFile + "_meta.pkl", "wb") as file:
+            pickle.dump([self.epsilon, self.epsilonDec, self.epsilonMin], file)
     
 
     def load_model(self, modelFile, buffFile=None):
-        model = keras.models.load_model(modelFile)
+        model = keras.models.load_model(modelFile + ".keras")
         model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.learningRate), loss='mse')
         self.q_eval = model
         
         if (buffFile is not None):
             self.memory.loadGames(buffFile)
+        
+            with open(modelFile + "_meta.pkl", "rb") as file:
+                temp = pickle.load(file)
+                
+                self.epsilon = temp[0]
+                self.epsilonDec = temp[1]
+                self.epsilonMin = temp[2]
