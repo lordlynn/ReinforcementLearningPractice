@@ -51,7 +51,7 @@ def main(n_epochs):
 
 
 if __name__ == "__main__":
-    loadModelFile = "./DQN_NEW.keras"
+    loadModelFile = "./checkpoints/DQN_NEW_95.keras"
 
     env = gym.make("CarRacing-v2", render_mode="human", continuous=False)
     agent = Agent.Agent(nActions=5, running=True)
