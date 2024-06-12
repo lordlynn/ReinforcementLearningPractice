@@ -19,36 +19,38 @@ def main(n_epochs):
         score = 0
         step = 1
 
+        # Create a new gameFrames object and setup environment
+        agent.newGame()
         observation, info = env.reset()
 
         while not done:
-            state = agent.memory.lastFrames()
+            # Get the most recent sample of frames from the buffer
+            state = agent.sampleForAction()
 
+            # Use the most recent frames to predict next action
             action = agent.choose_action(state)
 
-            newObservation, reward, done, truncated, info = env.step(action)
+            # Step environment
+            observation, reward, done, truncated, info = env.step(action)
             
             if (truncated):
                 done = True
 
-            agent.remember(rgb2gray(observation), action, reward, rgb2gray(newObservation), done)
+            # Add data to buffer
+            agent.remember(rgb2gray(observation), action, reward, done)
             
             score += reward
-            observation = newObservation
-            
             
             # Train every 2 steps through environment
             if (step % 2 == 0):
-                
+
                 agent.learn()
                 keras.backend.clear_session()
 
-
-
             step += 1
         
-        # with open("scores.txt", "a") as fp:
-        #     fp.write(str(score)+"\n")
+        with open("scores.txt", "a") as fp:
+            fp.write(str(score)+"\n")
 
         scores.append(score)
 
@@ -56,7 +58,7 @@ def main(n_epochs):
 
         print(f"Episode {i}\tScore {score:.2f}\tAverage Score {avg_scores:.2f}")
 
-    # agent.save_model(modelSaveFile, buffFile)
+    agent.save_model(modelSaveFile, buffFile)
     
     
 
@@ -68,12 +70,12 @@ if __name__ == "__main__":
     modelSaveFile = "DQN_NEW.keras"
     buffFile = "RB"
 
-    env = gym.make("CarRacing-v2", render_mode="human", continuous=False)
+    env = gym.make("CarRacing-v2", continuous=False)
 
-    agent = Agent.Agent(gamma=0.99, epsilon=1.00, learningRate=0.001, inputDims=(96,96,4), nActions=5, memSize=100000, batchSize=64, epsilonEnd=0.010)
+    agent = Agent.Agent(gamma=0.99, epsilon=1.0, learningRate=0.001, inputDims=(96,96,4), nActions=5, memSize=100000, batchSize=64, epsilonEnd=0.010)
 
-    # agent.build_network()
+    agent.build_network()
 
-    agent.load_model(loadModelFile)#, loadBuffFile)
+    # agent.load_model(loadModelFile, loadBuffFile)
 
-    main(5)
+    main(1)

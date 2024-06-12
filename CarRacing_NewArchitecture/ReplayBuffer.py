@@ -1,169 +1,189 @@
 import numpy as np
 import pickle
 
-class ReplayBuffer(object):
-    def __init__(self, maxSize, inputShape, nActions, discrete=False, stateType=np.float32): 
-        self.memSize = maxSize
-        self.discrete = discrete
+class GameFrames(object):
+    def __init__(self, inputShape, stateType, actionType, consecutive=4):
+        self.consecutive = consecutive
+        self.inputShape = inputShape
+        self.stateType = stateType
+        self.actionType = actionType
 
-        # Handle case when state inputShape is multiDimensional
-        if (isinstance(inputShape, int)):   
-            self.stateMemory = np.zeros((self.memSize, inputShape), dtype=stateType)
-            self.newStateMemory = np.zeros((self.memSize, inputShape), dtype=stateType)
+        self.gameFrames = np.array([], dtype=stateType)
+        self.action = np.array([], dtype=actionType)
+        self.reward = np.array([], dtype=np.float32)
+        self.done = np.array([], dtype=np.int8)
+
+        self.firstFrame = False
+        
+
+    def addFrame(self, frame, action, reward, done):
+        if (self.firstFrame == False):
+            self.gameFrames = frame
+            self.gameFrames = np.expand_dims(self.gameFrames, axis=2)
+            self.action = np.array([action], dtype=self.actionType)
+            self.reward = np.array([reward], dtype=np.float32)
+            self.done = np.array([done], dtype=np.int8)
+            self.firstFrame = True
         else:
-            self.stateMemory = np.zeros((self.memSize, *inputShape), dtype=stateType)
-            self.newStateMemory = np.zeros((self.memSize, *inputShape), dtype=stateType)
+            frame = np.expand_dims(frame, axis=2)
+            self.gameFrames = np.append(self.gameFrames, frame, axis=2)
+            self.action = np.append(self.action, action)
+            self.reward = np.append(self.reward, reward)
+            self.done = np.append(self.done, done)
+        
+
+    def removeFrame(self):
+        self.gameFrames = self.gameFrames[:,:,1:]
+        self.action = self.action[1:]
+        self.reward = self.reward[1:]
+        self.done = self.done[1:]
+
+        # If there are no frames in the game
+        if (len(self.done) == 0):
+            return 0
+        
+        return 1
 
 
-        # discrete vs continuous action space
-        _dtype = np.int8 if self.discrete else np.float32
-        self.actionMemory = np.zeros((self.memSize, nActions), dtype=_dtype)
+    def getFrameBatch(self, batchSize):
+        nFrames = self.gameFrames.shape[2]
 
-        self.rewardMemory = np.zeros(self.memSize, dtype=np.float32)
-        self.terminalMemory = np.zeros(self.memSize, dtype=np.int8)
-    
+        if (nFrames < (self.consecutive + batchSize)):
+            return None
+        
+        batch = np.random.choice(nFrames-self.consecutive-1, batchSize)
+
+        currFrame = np.array([self.gameFrames[:,:,b:b+self.consecutive] for b in batch], dtype=self.stateType)
+        nextFrame = np.array([self.gameFrames[:,:,b+1:b+self.consecutive+1] for b in batch], dtype=self.stateType)
+
+        action = np.array([self.action[b+self.consecutive] for b in batch], dtype=self.actionType)
+        reward = np.array([self.reward[b+self.consecutive] for b in batch], dtype=np.float32)
+        done = np.array([self.done[b+self.consecutive] for b in batch], dtype=np.int8)
+
+        return currFrame, nextFrame, action, reward, done
+
+    def getFrames(self):
+        try:
+            nFrames = self.gameFrames.shape[2]
+        except:
+            return None
+        
+        if (nFrames < self.consecutive):
+            return None
+        
+        return self.gameFrames[:,:, -1 * self.consecutive:]
+
+    def getSize(self):
+        return len(self.done)
+
+# Intended for use with sets of consecutive images
+class ReplayBuffer(object):
+    def __init__(self, memSize, inputShape, nActions, consecutive=4 , discrete=False, stateType=np.float32): 
+        self.memMax = memSize
+        self.discrete = discrete
+        self.consecutive = consecutive
+        self.inputShape = inputShape
+        self.stateType = stateType
+        self.actionType = np.int8 if self.discrete else np.float32
+        self.nActions = nActions 
+        self.games = []
         self.memPtr = 0
         self.rollOver = 0
     
 
-    def store_transition(self, state, action, reward, newState, done):
+    def store_transition(self, state, action, reward, done):
         # If at end of array roll pointer back to start
-        if (self.memPtr >= self.memSize):
+        if (self.memPtr >= self.memMax):
             self.memPtr = 0
             self.rollOver = 1
             print("**Replay buffer pointer rollover")
+        
+
+        # If we need to start deleting frames
+        if (self.rollOver):
+            # Delete first frame from the last game
+            if (self.games[0].removeFrame() == 0):
+                # If no frames left, delete the game
+                del self.games[0]
 
 
-        self.stateMemory[self.memPtr] = state
-        self.newStateMemory[self.memPtr] = newState
-
-        self.rewardMemory[self.memPtr] = reward
-
-        # Should be false when episode is over, and true when episode is still going 
-        self.terminalMemory[self.memPtr] = 1 - int(done)
-
-        # If discrete we one hot encode
-        if self.discrete:
-            actions = np.zeros(self.actionMemory.shape[1])
-            actions[action] = 1.0
-            self.actionMemory[self.memPtr] = actions
-        else:
-            self.actionMemory[self.memPtr] = action
+        # Add the current frame to the gameFrames
+        self.currentGame.addFrame(state, action, reward, 1 - int(done))
 
         self.memPtr += 1
 
 
-    def sample_buffer(self, batchSize, consecutive=None):
-        
-        # If a rollover has not happened yet get batch from available samples
-        if (self.rollOver == 0):
-            maxMem = min(self.memPtr, self.memSize)
+    def sample_buffer(self, batchSize):
+        # Get number of frames in each game
+        sizes = [g.getSize() for g in self.games]
 
-            if (consecutive is None):
-                batch = np.random.choice(maxMem, batchSize)
+        # Calculate number of samples that can be had from each game
+        sampleSizes = [s - 4 if (s-4 > 0) else 0 for s in sizes]
+        total = np.sum(sampleSizes) 
+
+        # Calculate proportions for each game based on number of samples
+        gameProportion = [weight / total for weight in sampleSizes]
+
+        # Uniformly select number of samples to use for each game 
+        gameSamples = np.random.choice(len(self.games), batchSize, p=gameProportion)
+        gameSamples = np.bincount(gameSamples, minlength=len(self.games))
+
+        # Resample if the number of samples from a game is larger than available
+        while (np.any((sampleSizes - gameSamples) < 0)):
+            gameSamples = np.random.choice(len(self.games), batchSize, p=gameProportion)
+
+            gameSamples = np.bincount(gameSamples, minlength=len(self.games))
+
+            print("**Resample batch probabilities")
+
+        # Use distribution to create a batch from multiple games
+        first = True
+        for i in range(len(self.games)):
+            if (gameSamples[i] == 0):
+                continue
+
+            cF, nF, a, r, d = self.games[i].getFrameBatch(gameSamples[i])
+            
+            if (first):
+                first = False
+                currentFrames = cF
+                nextFrames = nF
+                action = a
+                reward = r
+                done = d
             else:
-                batch = np.random.choice(maxMem-consecutive, batchSize)
-        # If a rollover has happened, use the entire buffer
-        else:
-            if (consecutive is None):
-                batch = np.random.choice(self.memSize, batchSize)
-            else:
-                batch = np.random.choice(self.memSize-consecutive, batchSize)
+                currentFrames = np.append(currentFrames, cF, axis=0)
+                nextFrames = np.append(nextFrames, cF, axis=0)
+                action = np.append(action, a)
+                reward = np.append(reward, r)
+                done = np.append(done, d)
 
-        # If using consecutive, use batch and next n frames. use last reward, action, done
-        if (consecutive is not None):
-            states = np.array([np.transpose(self.stateMemory[b:b+consecutive], (1, 2, 0)) for b in batch])
-            newStates = np.array([np.transpose(self.newStateMemory[b:b+consecutive], (1, 2, 0)) for b in batch])
-
-            rewards = self.rewardMemory[batch+consecutive-1]
-            actions = self.actionMemory[batch+consecutive-1]
-            terminal = self.terminalMemory[batch+consecutive-1]
-        else:
-            states = self.stateMemory[batch]
-            newStates = self.newStateMemory[batch]
-            rewards = self.rewardMemory[batch]
-            actions = self.actionMemory[batch]
-            terminal = self.terminalMemory[batch]
-
-        return states, actions, rewards, newStates, terminal 
-        
-        
-    def save_buffer(self, fileName):
-        with open(str(fileName) + "_states" + '.pkl', 'wb') as file:
-            pickle.dump(self.stateMemory, file)
-
-        with open(str(fileName) + "_newStates" + '.pkl', 'wb') as file:
-            pickle.dump(self.newStateMemory, file)
-
-        with open(str(fileName) + "_reward" + '.pkl', 'wb') as file:
-            pickle.dump(self.rewardMemory, file)
-
-        with open(str(fileName) + "_action" + '.pkl', 'wb') as file:
-            pickle.dump(self.actionMemory, file)
-
-        with open(str(fileName) + "_terminal" + '.pkl', 'wb') as file:
-            pickle.dump(self.terminalMemory, file)
-
-        with open(str(fileName) + "_pointer" + '.pkl', 'wb') as file:
-            pickle.dump([self.memPtr, self.rollOver], file)
+        return currentFrames, action, reward, nextFrames, done
 
 
-    def load_buffer(self, fileName):
-        self.clearBuffer()
-
-        with open(str(fileName) + "_states" + '.pkl', 'rb') as file:
-            self.stateMemory = pickle.load(file)
+    def sampleForAction(self):
+        return self.currentGame.getFrames()
     
-        with open(str(fileName) + "_newStates" + '.pkl', 'rb') as file:
-            self.newStateMemory = pickle.load(file)
+    
+    def newGame(self):
+        self.currentGame = GameFrames(self.inputShape, self.stateType, self.actionType, self.consecutive)
+        self.games.append(self.currentGame)
 
-        with open(str(fileName) + "_reward" + '.pkl', 'rb') as file:
-            self.rewardMemory = pickle.load(file)
 
-        with open(str(fileName) + "_action" + '.pkl', 'rb') as file:
-            self.actionMemory = pickle.load(file)
+    def saveGames(self, filename):
+        with open(filename + "_games.pkl", "wb") as file:
+            pickle.dump(self.games, file)
 
-        with open(str(fileName) + "_terminal" + '.pkl', 'rb') as file:
-            self.terminalMemory = pickle.load(file)
-        
-        with open(str(fileName) + "_pointer" + '.pkl', 'rb') as file:
+        with open(str(filename) + "_pointer.pkl", 'wb') as file:
+            pickle.dump([self.memPtr, self.rollOver, self.memMax], file)
+            
+
+    def loadGames(self, filename):
+        with open(filename + "_games.pkl", "rb") as file:
+            self.games = pickle.load(file)
+
+        with open(str(filename) + "_pointer.pkl", 'rb') as file:
             temp = pickle.load(file)
             self.memPtr = temp[0]
             self.rollOver = temp[1]
-
-
-    def clearBuffer(self):
-        del self.stateMemory
-        del self.newStateMemory
-        del self.rewardMemory
-        del self.actionMemory
-        del self.terminalMemory
-
-    # helper function for training when consecutive frames are needed
-    def lastFrames(self):
-        if (self.rollOver == 0):
-            maxMem = min(self.memPtr, self.memSize)
-
-            if (maxMem < 4):
-                return None
-            else:
-                maxMem -= 4
-                states = np.transpose(self.newStateMemory[maxMem:maxMem+4, :, :], (1, 2, 0))
-
-        # If a rollover has happened, use the entire buffer
-        else:
-            maxMem = self.memPtr
-
-            if (maxMem < 4):
-                H = maxMem - 4
-
-                t1 = self.newStateMemory[0:maxMem, :, :]
-                t2 = self.newStateMemory[H-1:-1, :, :]
-
-                states = np.transpose(np.concatenate((t2, t1), axis=0), (1, 2, 0))
-            else:
-                maxMem -= 4
-                states = np.transpose(self.newStateMemory[maxMem:maxMem+4, :, :], (1, 2, 0))
-
-
-        return states
+            self.memMax = temp[2]

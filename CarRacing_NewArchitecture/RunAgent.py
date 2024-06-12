@@ -1,7 +1,6 @@
 import numpy as np
 import gymnasium as gym
 import Agent
-import ReplayBuffer
 
 def rgb2gray(rgb):
     return np.array(np.dot(rgb[...,:3], [0.3333, 0.3333, 0.3333]), dtype=np.uint8)
@@ -16,25 +15,29 @@ def main(n_epochs):
         done = False
         score = 0
         observation, info = env.reset()
-        step = 1
+        temp = rgb2gray(observation)
+
+        temp = np.expand_dims(temp, axis=2)
+        state = temp
+        state = np.append(state, temp, axis=2)
+        state = np.append(state, temp, axis=2)
+        state = np.append(state, temp, axis=2)
 
         while not done:
-            state = agent.memory.lastFrames()
+            
 
-            action = agent.choose_action(state)
+            action = agent.choose_action(state) 
 
-            newObservation, reward, done, truncated, info = env.step(action)
+            observation, reward, done, truncated, info = env.step(action)
             
             if (truncated):
                 done = True
 
-            agent.remember(rgb2gray(observation), action, reward, rgb2gray(newObservation), done)
+            state = state[:,:,1:]
+            state = np.append(state, np.expand_dims(rgb2gray(observation), axis=2), axis=2)
             
             score += reward
-            observation = newObservation
-            
 
-            step += 1
 
         
         scores.append(score)
@@ -48,13 +51,10 @@ def main(n_epochs):
 
 
 if __name__ == "__main__":
-    loadModelFile = "./checkpoints/DQN_NEW_75.keras"
+    loadModelFile = "./DQN_NEW.keras"
 
     env = gym.make("CarRacing-v2", render_mode="human", continuous=False)
-    agent = Agent.Agent(gamma=0.99, epsilon=0.000, learningRate=0.001, inputDims=(96,96,4), nActions=5, memSize=20000, batchSize=64, epsilonEnd=0.000)
-    
-
-
+    agent = Agent.Agent(nActions=5, running=True)
     agent.load_model(loadModelFile)
 
     main(15)

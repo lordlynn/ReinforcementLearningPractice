@@ -59,8 +59,15 @@ class Agent(object):
         self.q_eval = model
 
 
-    def remember(self, state, action, reward, newState, done):
-        self.memory.store_transition(state, action, reward, newState, done)
+    def remember(self, state, action, reward, done):
+        self.memory.store_transition(state, action, reward, done)
+    
+    def sampleForAction(self):
+        return self.memory.sampleForAction()
+    
+    def newGame(self):
+        self.memory.newGame()
+        
 
     def choose_action(self, state):
         # state is only None at the start of each game
@@ -86,16 +93,10 @@ class Agent(object):
 
 
     def learn(self):
-        if self.memory.memPtr < self.batchSize:
+        if self.memory.memPtr < self.batchSize + 4 and self.memory.rollOver == 0:
             return
         
-        state, action, reward, newState, done = self.memory.sample_buffer(self.batchSize, consecutive=4)
-
-
-        # Since this is discrete go back from one hot encoding
-        action_values = np.array(self.actionsSpace, dtype=np.int8)
-        action_indices = np.dot(action, action_values)
-        action_indices = np.array(action_indices, dtype=np.int32)
+        state, action, reward, newState, done = self.memory.sample_buffer(self.batchSize)
 
         q_eval = self.q_eval(state)
         q_next = self.q_eval(newState)
@@ -108,7 +109,7 @@ class Agent(object):
         batch_index = np.arange(self.batchSize, dtype=np.int32)
 
         # Current reward + best possible action from next state - used for loss
-        q_target[batch_index, action_indices] = reward + self.gamma * np.max(q_next, axis=1) * done
+        q_target[batch_index, action] = reward + self.gamma * np.max(q_next, axis=1) * done
 
         self.q_eval.fit(state, q_target, verbose=0)
     
@@ -116,7 +117,7 @@ class Agent(object):
     def save_model(self, modelFile, buffFile):
         self.q_eval.save(modelFile)
 
-        self.memory.save_buffer(buffFile)
+        self.memory.saveGames(buffFile)
     
 
     def load_model(self, modelFile, buffFile=None):
@@ -125,4 +126,4 @@ class Agent(object):
         self.q_eval = model
         
         if (buffFile is not None):
-            self.memory.load_buffer(buffFile)
+            self.memory.loadGames(buffFile)
